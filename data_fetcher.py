@@ -12,6 +12,7 @@ SHEET_NAME = "Sheet to be used"
 CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME.replace(' ', '%20')}"
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "."))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_FILE          = str(DATA_DIR / "cache.json")
 PREV_CACHE_FILE     = str(DATA_DIR / "cache_prev.json")
 DAILY_BASELINE_FILE = str(DATA_DIR / "cache_baseline.json")
