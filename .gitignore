@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+email_config.json
+cache*.json
+management_summary.pdf
+server.log
+agent.log
+*.db

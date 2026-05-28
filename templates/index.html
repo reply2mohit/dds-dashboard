@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DDS Activity Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 { font-size: 22px; font-weight: 700; color: #fff; }
+    .header .subtitle { font-size: 13px; color: #64748b; margin-top: 2px; }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    .last-updated { font-size: 12px; color: #64748b; }
+    .refresh-btn {
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .refresh-btn:hover { background: #2563eb; }
+    .refresh-btn:disabled { background: #374151; cursor: not-allowed; }
+
+    /* Summary bar */
+    .summary {
+      display: flex;
+      gap: 16px;
+      padding: 20px 32px;
+      border-bottom: 1px solid #1e2235;
+    }
+    .stat-card {
+      flex: 1;
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      padding: 16px 20px;
+    }
+    .stat-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; }
+    .stat-card.total .value { color: #e2e8f0; }
+    .stat-card.completed .value { color: #22c55e; }
+    .stat-card.pending .value { color: #f59e0b; }
+    .stat-card.not-started .value { color: #64748b; }
+    .stat-card .sub { font-size: 12px; color: #64748b; margin-top: 4px; }
+
+    /* Filters */
+    .filters {
+      padding: 16px 32px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .filter-label { font-size: 13px; color: #64748b; }
+    .filter-btn {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      color: #94a3b8;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-btn.active, .filter-btn:hover {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      color: #fff;
+    }
+    .search-box {
+      margin-left: auto;
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      color: #e2e8f0;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      width: 200px;
+    }
+    .search-box:focus { outline: none; border-color: #3b82f6; }
+
+    /* Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+      padding: 0 32px 32px;
+    }
+
+    /* Brand card */
+    .brand-card {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+    .brand-card:hover { border-color: #3b82f6; }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .brand-name { font-size: 16px; font-weight: 600; color: #fff; }
+    .sku-count { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .pct-badge {
+      font-size: 20px;
+      font-weight: 700;
+      color: #22c55e;
+    }
+    .pct-badge.medium { color: #f59e0b; }
+    .pct-badge.low { color: #ef4444; }
+
+    /* Progress bar */
+    .progress-wrap {
+      background: #0f1117;
+      border-radius: 4px;
+      height: 6px;
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, #22c55e, #16a34a);
+      transition: width 0.4s ease;
+    }
+    .progress-bar.medium { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .progress-bar.low { background: linear-gradient(90deg, #ef4444, #dc2626); }
+
+    /* Status row */
+    .status-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot.green { background: #22c55e; }
+    .dot.amber { background: #f59e0b; }
+    .dot.gray { background: #475569; }
+
+    /* Marketplace chips */
+    .mp-section { margin-top: 10px; }
+    .mp-label { font-size: 11px; color: #64748b; margin-bottom: 6px; }
+    .mp-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .mp-chip {
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      color: #94a3b8;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .mp-chip.live {
+      background: #0d2a1e;
+      border-color: #166534;
+      color: #4ade80;
+    }
+    .no-mp { font-size: 12px; color: #475569; }
+
+    /* Empty state */
+    .empty { text-align: center; color: #475569; padding: 60px; grid-column: 1/-1; }
+
+    /* View tabs */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 32px;
+      border-bottom: 1px solid #2d3148;
+      margin-top: 4px;
+    }
+    .view-tab {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 12px 20px;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: -1px;
+    }
+    .view-tab.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+    .view-tab:hover:not(.active) { color: #94a3b8; }
+
+    /* Matrix table */
+    .table-section { padding: 24px 32px 40px; display: none; overflow-x: auto; }
+    .table-section.visible { display: block; }
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 900px;
+    }
+    .matrix-table th {
+      background: #1a1d27;
+      color: #94a3b8;
+      font-weight: 500;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      padding: 10px 14px;
+      text-align: center;
+      border: 1px solid #2d3148;
+      white-space: nowrap;
+    }
+    .matrix-table th.brand-col { text-align: left; min-width: 140px; position: sticky; left: 0; z-index: 1; }
+    .matrix-table td {
+      padding: 10px 14px;
+      border: 1px solid #1e2235;
+      text-align: center;
+      color: #94a3b8;
+    }
+    .matrix-table td.brand-cell {
+      text-align: left;
+      font-weight: 600;
+      color: #e2e8f0;
+      background: #1a1d27;
+      position: sticky;
+      left: 0;
+      z-index: 1;
+    }
+    .matrix-table td.brand-cell .brand-total { font-size: 11px; color: #475569; font-weight: 400; }
+    .matrix-table tr:hover td { background: #1e2235; }
+    .matrix-table tr:hover td.brand-cell { background: #232740; }
+    .cell-count {
+      display: inline-block;
+      min-width: 28px;
+      font-weight: 600;
+      color: #4ade80;
+    }
+    .cell-zero { color: #2d3148; }
+    .matrix-table tfoot td {
+      background: #1a1d27;
+      font-weight: 700;
+      color: #e2e8f0;
+      border-top: 2px solid #3b82f6;
+    }
+    .matrix-table tfoot td.brand-cell { color: #94a3b8; font-size: 11px; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>DDS Activity Dashboard</h1>
+    <div class="subtitle">Detailed Design Sheet — Brand-wise snapshot</div>
+  </div>
+  <div class="header-right">
+    <div class="last-updated" id="lastUpdated">Last updated: {{ data.last_updated }}</div>
+    <a href="/download-pdf" class="refresh-btn" style="text-decoration:none;">Download PDF</a>
+    <button class="refresh-btn" style="background:#6366f1;" id="emailBtn" onclick="showEmailModal()">Email Summary</button>
+    <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">Refresh Now</button>
+  </div>
+</div>
+
+<div class="summary">
+  <div class="stat-card total">
+    <div class="label">Total SKUs</div>
+    <div class="value">{{ data.total_skus }}</div>
+    <div class="sub">across {{ data.brands | length }} brands</div>
+  </div>
+  <div class="stat-card completed">
+    <div class="label">Completed (Sent)</div>
+    <div class="value">{{ data.total_completed }}</div>
+    <div class="sub">{{ ((data.total_completed / data.total_skus) * 100) | round(1) if data.total_skus > 0 else 0 }}% of total</div>
+  </div>
+  <div class="stat-card pending">
+    <div class="label">Pending</div>
+    <div class="value">{{ data.total_pending }}</div>
+    <div class="sub">{{ ((data.total_pending / data.total_skus) * 100) | round(1) if data.total_skus > 0 else 0 }}% of total</div>
+  </div>
+  <div class="stat-card not-started">
+    <div class="label">Not Started</div>
+    <div class="value">{{ data.total_not_started }}</div>
+    <div class="sub">{{ ((data.total_not_started / data.total_skus) * 100) | round(1) if data.total_skus > 0 else 0 }}% of total</div>
+  </div>
+</div>
+
+{% set ch = data.changes %}
+<div style="padding:20px 32px 24px; background:#0d1520; border-bottom:1px solid #1e3a5f;">
+
+  <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
+    <span style="background:#1e3a5f; color:#60a5fa; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.8px;">Last 24h Changes</span>
+    <span style="font-size:12px; color:#475569;">{% if ch %}since {{ ch.since }}{% else %}no baseline yet{% endif %}</span>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+
+  <!-- Section 1: DDS Updates -->
+  <div style="background:#0f1e14; border:1px solid #1a3a24; border-left:4px solid #22c55e; border-radius:8px; padding:14px 18px;">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <span style="font-size:13px; font-weight:700; color:#22c55e; text-transform:uppercase; letter-spacing:0.6px;">① DDS Updates</span>
+      {% if ch and ch.total_dds_completed > 0 %}
+      <span style="background:#14532d; color:#22c55e; font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px;">+{{ ch.total_dds_completed }} SKUs completed</span>
+      {% else %}
+      <span style="background:#1a2a1a; color:#4b7a55; font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px;">NIL</span>
+      {% endif %}
+    </div>
+    {% if ch and ch.total_dds_completed > 0 %}
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:6px;">
+      {% for brand, items in ch.dds_completed_by_brand.items() %}
+      <div style="background:#0a1a10; border-radius:6px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px; color:#94a3b8;">{{ brand }}</span>
+        <span style="font-size:13px; font-weight:700; color:#22c55e;">+{{ items|length }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Section 2: Marketplace Updates -->
+  <div style="background:#1a1500; border:1px solid #3a2e00; border-left:4px solid #f59e0b; border-radius:8px; padding:14px 18px;">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <span style="font-size:13px; font-weight:700; color:#f59e0b; text-transform:uppercase; letter-spacing:0.6px;">② Marketplace Updates</span>
+      {% if ch and ch.total_mp_gained > 0 %}
+      <span style="background:#451a03; color:#f59e0b; font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px;">+{{ ch.total_mp_gained }} new links</span>
+      {% else %}
+      <span style="background:#2a1e00; color:#7a6020; font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px;">NIL</span>
+      {% endif %}
+    </div>
+    {% if ch and ch.total_mp_gained > 0 %}
+    <div style="display:flex; flex-direction:column; gap:5px;">
+      {% for brand, items in ch.mp_gained_by_brand.items() %}
+      <div style="background:#110e00; border-radius:6px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+        <span style="font-size:12px; color:#94a3b8; min-width:120px;">{{ brand }}</span>
+        <div style="display:flex; gap:5px; flex-wrap:wrap;">
+          {% for mp in items | map(attribute='gained') | sum(start=[]) | unique %}
+          <span style="background:#292100; color:#f59e0b; font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px;">{{ mp }}</span>
+          {% endfor %}
+        </div>
+        <span style="font-size:12px; font-weight:700; color:#f59e0b;">+{{ items|length }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Section 3: New SKUs -->
+  <div style="background:#0d1521; border:1px solid #1e3a5f; border-left:4px solid #3b82f6; border-radius:8px; padding:14px 18px;">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <span style="font-size:13px; font-weight:700; color:#60a5fa; text-transform:uppercase; letter-spacing:0.6px;">③ New SKUs Added</span>
+      {% if ch and ch.total_new_skus > 0 %}
+      <span style="background:#1e3a5f; color:#60a5fa; font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px;">+{{ ch.total_new_skus }} SKUs</span>
+      {% else %}
+      <span style="background:#0d1828; color:#2d5080; font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px;">NIL</span>
+      {% endif %}
+    </div>
+    {% if ch and ch.total_new_skus > 0 %}
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:6px;">
+      {% for brand, items in ch.new_skus_by_brand.items() %}
+      <div style="background:#081018; border-radius:6px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px; color:#94a3b8;">{{ brand }}</span>
+        <span style="font-size:13px; font-weight:700; color:#60a5fa;">+{{ items|length }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  </div><!-- end grid -->
+</div>
+
+<div class="view-tabs">
+  <button class="view-tab active" onclick="switchView('cards', this)">Brand Cards</button>
+  <button class="view-tab" onclick="switchView('table', this)">Channel Matrix</button>
+</div>
+
+<div class="filters" id="filtersBar">
+  <span class="filter-label">Filter:</span>
+  <button class="filter-btn active" onclick="setFilter('all', this)">All Brands</button>
+  <button class="filter-btn" onclick="setFilter('has_completed', this)">Has Completed</button>
+  <button class="filter-btn" onclick="setFilter('pending_only', this)">Pending Only</button>
+  <button class="filter-btn" onclick="setFilter('not_started', this)">Not Started</button>
+  <button class="filter-btn" onclick="setFilter('live', this)">Live on Marketplaces</button>
+  <input class="search-box" type="text" placeholder="Search brand..." oninput="searchBrands(this.value)" />
+</div>
+
+<div class="grid" id="brandGrid">
+  {% for brand in data.brands %}
+  {% set pct = brand.pct_complete %}
+  {% set level = 'high' if pct >= 70 else ('medium' if pct >= 30 else 'low') %}
+  <div class="brand-card"
+    data-brand="{{ brand.name | lower }}"
+    data-completed="{{ brand.completed }}"
+    data-pending="{{ brand.pending }}"
+    data-not-started="{{ brand.not_started }}"
+    data-live="{{ brand.marketplace_count }}">
+
+    <div class="card-header">
+      <div>
+        <div class="brand-name">{{ brand.name }}</div>
+        <div class="sku-count">{{ brand.total }} SKU{{ 's' if brand.total != 1 else '' }}</div>
+      </div>
+      <div class="pct-badge {{ '' if level == 'high' else level }}">{{ pct }}%</div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-bar {{ '' if level == 'high' else level }}" style="width: {{ pct }}%"></div>
+    </div>
+
+    <div class="status-row">
+      <div class="status-pill">
+        <span class="dot green"></span>
+        <span>{{ brand.completed }} completed</span>
+      </div>
+      <div class="status-pill">
+        <span class="dot amber"></span>
+        <span>{{ brand.pending }} pending</span>
+      </div>
+      <div class="status-pill">
+        <span class="dot gray"></span>
+        <span>{{ brand.not_started }} not started</span>
+      </div>
+    </div>
+
+    <div class="mp-section">
+      <div class="mp-label">
+        Live on {{ brand.marketplace_count }} marketplace{{ 's' if brand.marketplace_count != 1 else '' }}
+      </div>
+      <div class="mp-chips">
+        {% if brand.live_marketplaces %}
+          {% for mp in brand.live_marketplaces %}
+          <span class="mp-chip live">{{ mp }}</span>
+          {% endfor %}
+        {% else %}
+          <span class="no-mp">Not live on any marketplace</span>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Channel Matrix Table -->
+<div class="table-section" id="tableSection">
+  <table class="matrix-table">
+    <thead>
+      <tr>
+        <th class="brand-col">Brand</th>
+        {% for mp in data.all_marketplaces %}
+        <th>{{ mp }}</th>
+        {% endfor %}
+        <th>Total Live SKUs</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for brand in data.brands %}
+      <tr>
+        <td class="brand-cell">
+          {{ brand.name }}
+          <div class="brand-total">{{ brand.total }} SKUs total</div>
+        </td>
+        {% for mp in data.all_marketplaces %}
+        {% set count = brand.mp_sku_counts.get(mp, 0) %}
+        <td>
+          {% if count > 0 %}
+            <span class="cell-count">{{ count }}</span>
+          {% else %}
+            <span class="cell-zero">—</span>
+          {% endif %}
+        </td>
+        {% endfor %}
+        <td><strong style="color:#e2e8f0">{{ brand.marketplace_count }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td class="brand-cell">Total SKUs live</td>
+        {% for mp in data.all_marketplaces %}
+        <td><strong>{{ data.mp_totals.get(mp, 0) or '—' }}</strong></td>
+        {% endfor %}
+        <td></td>
+      </tr>
+      <tr>
+        {% set amazon_total = data.mp_totals.get('Amazon', 1) %}
+        <td class="brand-cell" style="color:#94a3b8;font-size:11px;">% of Amazon (base 100%)</td>
+        {% for mp in data.all_marketplaces %}
+        {% set count = data.mp_totals.get(mp, 0) %}
+        <td style="font-size:12px; color: {% if mp == 'Amazon' %}#3b82f6{% elif count / amazon_total >= 0.5 %}#4ade80{% elif count / amazon_total >= 0.2 %}#f59e0b{% else %}#ef4444{% endif %}; font-weight:600;">
+          {% if mp == 'Amazon' %}100%
+          {% elif count > 0 %}{{ ((count / amazon_total) * 100) | round(1) }}%
+          {% else %}—{% endif %}
+        </td>
+        {% endfor %}
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- Bar chart: % of Amazon (excluding Amazon itself) -->
+  <div style="margin-top: 40px;">
+    <div style="font-size:15px; font-weight:600; color:#e2e8f0; margin-bottom:4px;">Marketplace Reach vs Amazon</div>
+    <div style="font-size:12px; color:#64748b; margin-bottom:20px;">SKUs live on each channel as % of Amazon ({{ data.mp_totals.get('Amazon', 0) }} SKUs = 100%)</div>
+    <div style="width: 100%;">
+      <canvas id="mpChart" height="55"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentFilter = 'all';
+  let currentSearch = '';
+
+  function switchView(view, btn) {
+    document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const grid = document.getElementById('brandGrid');
+    const filtersBar = document.getElementById('filtersBar');
+    const table = document.getElementById('tableSection');
+    if (view === 'table') {
+      grid.style.display = 'none';
+      filtersBar.style.display = 'none';
+      table.classList.add('visible');
+      setTimeout(renderChart, 50);
+    } else {
+      grid.style.display = '';
+      filtersBar.style.display = '';
+      table.classList.remove('visible');
+    }
+  }
+
+  function applyFilters() {
+    const cards = document.querySelectorAll('.brand-card');
+    let visible = 0;
+    cards.forEach(card => {
+      const brand = card.dataset.brand;
+      const completed = parseInt(card.dataset.completed);
+      const pending = parseInt(card.dataset.pending);
+      const notStarted = parseInt(card.dataset.notStarted);
+      const live = parseInt(card.dataset.live);
+
+      let show = true;
+
+      if (currentSearch && !brand.includes(currentSearch.toLowerCase())) {
+        show = false;
+      }
+
+      if (show) {
+        switch (currentFilter) {
+          case 'has_completed': show = completed > 0; break;
+          case 'pending_only': show = pending > 0 && completed === 0; break;
+          case 'not_started': show = notStarted > 0 && completed === 0 && pending === 0; break;
+          case 'live': show = live > 0; break;
+        }
+      }
+
+      card.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+
+    const empty = document.getElementById('emptyState');
+    if (empty) empty.style.display = visible === 0 ? '' : 'none';
+  }
+
+  function setFilter(filter, btn) {
+    currentFilter = filter;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyFilters();
+  }
+
+  function searchBrands(val) {
+    currentSearch = val;
+    applyFilters();
+  }
+
+  // Chart.js — Marketplace % of Amazon
+  const amazonTotal = {{ data.mp_totals.get('Amazon', 1) }};
+  const mpLabels = {{ data.all_marketplaces | reject('equalto', 'Amazon') | list | tojson }};
+  const mpValues = mpLabels.map(mp => {
+    const counts = {{ data.mp_totals | tojson }};
+    return counts[mp] ? parseFloat(((counts[mp] / amazonTotal) * 100).toFixed(1)) : 0;
+  });
+
+  const barColors = mpValues.map(v =>
+    v >= 50 ? '#22c55e' : v >= 20 ? '#3b82f6' : v >= 10 ? '#f59e0b' : '#ef4444'
+  );
+
+  let chartInstance = null;
+
+  function renderChart() {
+    const ctx = document.getElementById('mpChart');
+    if (!ctx) return;
+    if (chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: mpLabels,
+        datasets: [{
+          label: '% of Amazon',
+          data: mpValues,
+          backgroundColor: barColors,
+          borderRadius: 6,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.parsed.y}% of Amazon (${Math.round(ctx.parsed.y * amazonTotal / 100)} SKUs)`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: '#1e2235' },
+            ticks: {
+              color: '#94a3b8',
+              font: { size: 13 },
+              maxRotation: 0,
+              minRotation: 0,
+              autoSkip: false
+            }
+          },
+          y: {
+            min: 0,
+            max: 100,
+            grid: { color: '#1e2235' },
+            ticks: {
+              color: '#94a3b8',
+              font: { size: 11 },
+              callback: v => v + '%'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  async function refreshData() {
+    const btn = document.getElementById('refreshBtn');
+    btn.disabled = true;
+    btn.textContent = 'Refreshing...';
+    try {
+      const resp = await fetch('/api/refresh', { method: 'POST' });
+      const data = await resp.json();
+      document.getElementById('lastUpdated').textContent = 'Last updated: ' + data.last_updated;
+      btn.textContent = 'Done! Reloading...';
+      setTimeout(() => location.reload(), 800);
+    } catch (e) {
+      btn.textContent = 'Error - retry';
+      btn.disabled = false;
+    }
+  }
+</script>
+
+<!-- Email Modal -->
+<div id="emailModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center;">
+  <div style="background:#ffffff; border-radius:14px; padding:32px; width:440px; max-width:92vw; box-shadow:0 8px 32px rgba(0,0,0,.18);">
+    <!-- Modal header strip -->
+    <div style="background:#1e3a5f; margin:-32px -32px 24px; padding:20px 24px; border-radius:10px 10px 0 0;">
+      <div style="font-size:16px; font-weight:700; color:#ffffff;">Send DDS Tracker Report</div>
+      <div style="font-size:11px; color:#93c5fd; margin-top:2px;">PDF will be generated and attached automatically</div>
+    </div>
+    <label style="font-size:12px; color:#64748b; font-weight:600; display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Recipients</label>
+    <textarea id="emailRecipients" rows="3"
+      style="width:100%; background:#f8fafc; border:1px solid #e2e8f0; color:#0f172a; border-radius:8px; padding:10px 12px; font-size:13px; resize:vertical; font-family:inherit; box-sizing:border-box;"
+      placeholder="manager@company.com, ceo@company.com"></textarea>
+    <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Separate multiple addresses with commas</div>
+    <div id="emailStatus" style="font-size:12px; margin-top:10px; min-height:16px;"></div>
+    <div style="display:flex; gap:10px; margin-top:20px; justify-content:flex-end;">
+      <button onclick="hideEmailModal()" style="background:#f1f5f9; border:none; color:#64748b; padding:9px 20px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;">Cancel</button>
+      <button id="sendEmailBtn" onclick="sendEmail()" style="background:#1e3a5f; border:none; color:#fff; padding:9px 22px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;">Send Report</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  async function showEmailModal() {
+    const m = document.getElementById('emailModal');
+    m.style.display = 'flex';
+    document.getElementById('emailStatus').textContent = '';
+    document.getElementById('sendEmailBtn').disabled = false;
+    document.getElementById('sendEmailBtn').textContent = 'Send Report';
+    // Pre-populate with default recipients
+    const ta = document.getElementById('emailRecipients');
+    if (!ta.value.trim()) {
+      try {
+        const r = await fetch('/api/email-config');
+        const cfg = await r.json();
+        if (cfg.default_recipients && cfg.default_recipients.length) {
+          ta.value = cfg.default_recipients.join(', ');
+        }
+      } catch(_) {}
+    }
+  }
+  function hideEmailModal() {
+    document.getElementById('emailModal').style.display = 'none';
+  }
+  async function sendEmail() {
+    const raw = document.getElementById('emailRecipients').value.trim();
+    const recipients = raw.split(',').map(s => s.trim()).filter(Boolean);
+    if (!recipients.length) {
+      document.getElementById('emailStatus').style.color = '#ef4444';
+      document.getElementById('emailStatus').textContent = 'Please enter at least one email address.';
+      return;
+    }
+    const btn = document.getElementById('sendEmailBtn');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    document.getElementById('emailStatus').style.color = '#64748b';
+    document.getElementById('emailStatus').textContent = 'Generating PDF and sending…';
+    try {
+      const resp = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipients })
+      });
+      const data = await resp.json();
+      if (data.status === 'ok') {
+        document.getElementById('emailStatus').style.color = '#16a34a';
+        document.getElementById('emailStatus').textContent = `Sent to: ${data.sent_to.join(', ')}`;
+        btn.textContent = 'Sent!';
+        setTimeout(hideEmailModal, 2500);
+      } else {
+        document.getElementById('emailStatus').style.color = '#dc2626';
+        document.getElementById('emailStatus').textContent = `Error: ${data.message}`;
+        btn.disabled = false;
+        btn.textContent = 'Send Report';
+      }
+    } catch (e) {
+      document.getElementById('emailStatus').style.color = '#dc2626';
+      document.getElementById('emailStatus').textContent = 'Network error. Is the server running?';
+      btn.disabled = false;
+      btn.textContent = 'Send Report';
+    }
+  }
+</script>
+</body>
+</html>
