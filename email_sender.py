@@ -316,6 +316,17 @@ def send_pdf(pdf_path, recipients, subject=None):
         attachment.add_header("Content-Disposition", "attachment", filename="DDS_Management_Summary.pdf")
         msg.attach(attachment)
 
+    # JSON data backup attachment
+    from data_fetcher import CACHE_FILE
+    try:
+        with open(CACHE_FILE, "rb") as f:
+            json_attach = MIMEApplication(f.read(), _subtype="json")
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            json_attach.add_header("Content-Disposition", "attachment", filename=f"dds_data_{date_str}.json")
+            msg.attach(json_attach)
+    except FileNotFoundError:
+        pass
+
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
         smtp.login(sender, app_password)
         smtp.sendmail(sender, all_recipients, msg.as_string())
