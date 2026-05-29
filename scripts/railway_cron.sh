@@ -10,25 +10,41 @@ if [[ -z "$BASE_URL" ]]; then
   exit 1
 fi
 
-echo "Refreshing DDS data..."
-REFRESH=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/refresh")
+python3 - <<PYEOF
+import sys, os
+import urllib.request
+import urllib.error
+import json
 
-if [[ "$REFRESH" != "200" ]]; then
-  echo "ERROR: Refresh failed (HTTP $REFRESH)"
-  exit 1
-fi
-echo "Data refreshed."
+base_url = os.environ["DDS_URL"].rstrip("/")
 
-echo "Sending nightly email..."
-EMAIL=$(curl -s -o /tmp/email_resp.json -w "%{http_code}" --max-time 240 \
-  -X POST "$BASE_URL/api/send-email" \
-  -H "Content-Type: application/json" \
-  -d '{"recipients": []}')
+# Step 1: Refresh data
+print("Refreshing DDS data...")
+try:
+    req = urllib.request.Request(f"{base_url}/api/refresh", method="POST")
+    req.add_header("Content-Type", "application/json")
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        if resp.status != 200:
+            print(f"ERROR: Refresh failed (HTTP {resp.status})")
+            sys.exit(1)
+    print("Data refreshed.")
+except Exception as e:
+    print(f"ERROR: Refresh failed: {e}")
+    sys.exit(1)
 
-if [[ "$EMAIL" != "200" ]]; then
-  echo "ERROR: Email failed (HTTP $EMAIL)"
-  cat /tmp/email_resp.json
-  exit 1
-fi
-
-echo "Done: $(cat /tmp/email_resp.json)"
+# Step 2: Send email
+print("Sending nightly email...")
+try:
+    payload = json.dumps({"recipients": []}).encode()
+    req = urllib.request.Request(f"{base_url}/api/send-email", data=payload, method="POST")
+    req.add_header("Content-Type", "application/json")
+    with urllib.request.urlopen(req, timeout=240) as resp:
+        body = resp.read().decode()
+        if resp.status != 200:
+            print(f"ERROR: Email failed (HTTP {resp.status}): {body}")
+            sys.exit(1)
+        print(f"Done: {body}")
+except Exception as e:
+    print(f"ERROR: Email failed: {e}")
+    sys.exit(1)
+PYEOF
