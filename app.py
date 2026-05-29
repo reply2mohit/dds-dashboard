@@ -59,8 +59,7 @@ def email_config():
 
 @app.route("/api/send-email", methods=["POST"])
 def send_email():
-    from pdf_generator import build_pdf
-    from email_sender import send_pdf, load_config
+    from email_sender import send_pdf, send_html_only, load_config
     body = request.get_json()
     recipients = body.get("recipients", [])
     if not recipients:
@@ -71,11 +70,17 @@ def send_email():
             return jsonify({"status": "error", "message": "No recipients and no config found"}), 400
     try:
         from data_fetcher import DATA_DIR
+        from pdf_generator import build_pdf
         pdf_path = build_pdf(str(DATA_DIR / "management_summary.pdf"))
         sent_to = send_pdf(pdf_path, recipients)
-        return jsonify({"status": "ok", "sent_to": sent_to})
-    except FileNotFoundError as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
+        return jsonify({"status": "ok", "sent_to": sent_to, "pdf": True})
+    except Exception as pdf_err:
+        # PDF generation failed (likely OOM) — send HTML-only email
+        try:
+            sent_to = send_html_only(recipients)
+            return jsonify({"status": "ok", "sent_to": sent_to, "pdf": False, "pdf_error": str(pdf_err)})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 500
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

@@ -335,6 +335,34 @@ def send_pdf(pdf_path, recipients, subject=None):
     return all_recipients
 
 
+def send_html_only(recipients, subject=None):
+    """Send HTML email without PDF attachment (fallback when PDF generation fails)."""
+    config       = load_config()
+    sender       = config["sender"]
+    app_password = config["app_password"]
+
+    all_recipients = list({r.strip() for r in (recipients if isinstance(recipients, list) else [recipients])} | {ALWAYS_INCLUDE})
+
+    if not subject:
+        subject = f"DDS Tracker — {datetime.now().strftime('%d %b %Y')} (HTML only)"
+
+    data      = load_data()
+    html_body = build_html_body(data)
+
+    msg = MIMEMultipart("alternative")
+    msg["From"]    = sender
+    msg["To"]      = ", ".join(all_recipients)
+    msg["Subject"] = subject
+    msg.attach(MIMEText(html_body, "html"))
+
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as smtp:
+        smtp.starttls()
+        smtp.login(sender, app_password)
+        smtp.sendmail(sender, all_recipients, msg.as_string())
+
+    return all_recipients
+
+
 if __name__ == "__main__":
     import sys
     recipients = sys.argv[1:] if len(sys.argv) > 1 else load_config().get("default_recipients", [])
