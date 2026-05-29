@@ -339,14 +339,34 @@ def send_pdf(pdf_path, recipients, subject=None):
     return all_recipients
 
 
-def send_html_only(recipients, subject=None):
-    """Send HTML email. Uses pre-cached HTML from /api/refresh if available."""
-    print("[email] Loading config...", flush=True)
-    config       = load_config()
-    sender       = config["sender"]
-    app_password = config["app_password"]
+def _send_via_resend(api_key, from_addr, recipients, subject, html_body):
+    """Send email via Resend HTTP API (works on Railway — uses HTTPS port 443)."""
+    import urllib.request as _req
+    import json as _json
+    payload = _json.dumps({
+        "from": from_addr,
+        "to": recipients,
+        "subject": subject,
+        "html": html_body,
+    }).encode()
+    request = _req.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+    )
+    with _req.urlopen(request, timeout=30) as resp:
+        return _json.loads(resp.read())
 
-    all_recipients = list({r.strip() for r in (recipients if isinstance(recipients, list) else [recipients])} | {ALWAYS_INCLUDE})
+
+def send_html_only(recipients, subject=None):
+    """Send HTML email via Resend API. Uses pre-cached HTML from /api/refresh if available."""
+    print("[email] Loading config...", flush=True)
+    config = load_config()
+
+    all_recipients = list(
+        {r.strip() for r in (recipients if isinstance(recipients, list) else [recipients])}
+        | {ALWAYS_INCLUDE}
+    )
 
     if not subject:
         subject = f"DDS Tracker — {datetime.now().strftime('%d %b %Y')}"
@@ -363,23 +383,16 @@ def send_html_only(recipients, subject=None):
         data = load_data()
         html_body = build_html_body(data)
 
-    print(f"[email] HTML ready ({len(html_body)} bytes). Building message...", flush=True)
-    msg = MIMEMultipart("alternative")
-    msg["From"]    = sender
-    msg["To"]      = ", ".join(all_recipients)
-    msg["Subject"] = subject
-    msg.attach(MIMEText(html_body, "html"))
+    print(f"[email] HTML ready ({len(html_body)} bytes). Sending via Resend...", flush=True)
 
-    print("[email] Connecting to smtp.gmail.com:587...", flush=True)
-    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as smtp:
-        print("[email] STARTTLS...", flush=True)
-        smtp.starttls()
-        print("[email] Login...", flush=True)
-        smtp.login(sender, app_password)
-        print("[email] Sending...", flush=True)
-        smtp.sendmail(sender, all_recipients, msg.as_string())
+    resend_key = os.environ.get("RESEND_API_KEY", "")
+    from_addr  = os.environ.get("FROM_EMAIL", f"DDS Tracker <{config.get('sender', ALWAYS_INCLUDE)}>")
 
-    print("[email] Done.", flush=True)
+    if not resend_key:
+        raise RuntimeError("RESEND_API_KEY env var not set — add it in Railway Variables")
+
+    result = _send_via_resend(resend_key, from_addr, all_recipients, subject, html_body)
+    print(f"[email] Sent. Resend ID: {result.get('id')}", flush=True)
     return all_recipients
 
 
