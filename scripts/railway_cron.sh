@@ -65,13 +65,25 @@ msg.attach(MIMEText(html_body, "html"))
 
 # ── Step 4: Send via SMTP ────────────────────────────────────────────────────
 print(f"Sending to {all_recip}...")
-try:
-    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as smtp:
-        smtp.starttls()
-        smtp.login(sender, app_password)
-        smtp.sendmail(sender, all_recip, msg.as_string())
-    print(f"✅ Email sent to {all_recip}")
-except Exception as e:
-    print(f"ERROR: SMTP failed: {e}")
+sent = False
+for port, use_ssl in [(465, True), (587, False)]:
+    try:
+        if use_ssl:
+            with smtplib.SMTP_SSL("smtp.gmail.com", port, timeout=30) as smtp:
+                smtp.login(sender, app_password)
+                smtp.sendmail(sender, all_recip, msg.as_string())
+        else:
+            with smtplib.SMTP("smtp.gmail.com", port, timeout=30) as smtp:
+                smtp.starttls()
+                smtp.login(sender, app_password)
+                smtp.sendmail(sender, all_recip, msg.as_string())
+        print(f"✅ Email sent via port {port} to {all_recip}")
+        sent = True
+        break
+    except Exception as e:
+        print(f"Port {port} failed: {e}")
+
+if not sent:
+    print("ERROR: All SMTP ports failed")
     sys.exit(1)
 PYEOF
