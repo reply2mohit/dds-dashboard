@@ -340,7 +340,8 @@ def send_pdf(pdf_path, recipients, subject=None):
 
 
 def send_html_only(recipients, subject=None):
-    """Send HTML email without PDF attachment (fallback when PDF generation fails)."""
+    """Send HTML email. Uses pre-cached HTML from /api/refresh if available."""
+    print("[email] Loading config...", flush=True)
     config       = load_config()
     sender       = config["sender"]
     app_password = config["app_password"]
@@ -348,22 +349,37 @@ def send_html_only(recipients, subject=None):
     all_recipients = list({r.strip() for r in (recipients if isinstance(recipients, list) else [recipients])} | {ALWAYS_INCLUDE})
 
     if not subject:
-        subject = f"DDS Tracker — {datetime.now().strftime('%d %b %Y')} (HTML only)"
+        subject = f"DDS Tracker — {datetime.now().strftime('%d %b %Y')}"
 
-    data      = load_data()
-    html_body = build_html_body(data)
+    # Use pre-cached HTML (generated during refresh) to avoid loading all data into memory
+    from data_fetcher import DATA_DIR
+    email_html_path = str(DATA_DIR / "email_cache.html")
+    if os.path.exists(email_html_path):
+        print("[email] Using cached HTML.", flush=True)
+        with open(email_html_path) as f:
+            html_body = f.read()
+    else:
+        print("[email] No cache — building HTML from data.", flush=True)
+        data = load_data()
+        html_body = build_html_body(data)
 
+    print(f"[email] HTML ready ({len(html_body)} bytes). Building message...", flush=True)
     msg = MIMEMultipart("alternative")
     msg["From"]    = sender
     msg["To"]      = ", ".join(all_recipients)
     msg["Subject"] = subject
     msg.attach(MIMEText(html_body, "html"))
 
+    print("[email] Connecting to smtp.gmail.com:587...", flush=True)
     with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as smtp:
+        print("[email] STARTTLS...", flush=True)
         smtp.starttls()
+        print("[email] Login...", flush=True)
         smtp.login(sender, app_password)
+        print("[email] Sending...", flush=True)
         smtp.sendmail(sender, all_recipients, msg.as_string())
 
+    print("[email] Done.", flush=True)
     return all_recipients
 
 

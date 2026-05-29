@@ -14,6 +14,18 @@ def index():
 @app.route("/api/refresh", methods=["POST"])
 def refresh():
     data = fetch_and_process()
+    # Pre-generate email HTML while data is already in memory (avoids OOM on /api/send-email)
+    try:
+        from email_sender import build_html_body
+        from data_fetcher import DATA_DIR
+        slim_brands = [{k: v for k, v in b.items() if k != "skus"} for b in data.get("brands", [])]
+        slim = dict(data, brands=slim_brands)
+        html = build_html_body(slim)
+        with open(str(DATA_DIR / "email_cache.html"), "w") as f:
+            f.write(html)
+        print("[refresh] Email HTML cached.", flush=True)
+    except Exception as e:
+        print(f"[refresh] Warning: could not cache email HTML: {e}", flush=True)
     return jsonify({"status": "ok", "last_updated": data["last_updated"]})
 
 @app.route("/api/data")
@@ -60,6 +72,7 @@ def email_config():
 @app.route("/api/send-email", methods=["POST"])
 def send_email():
     from email_sender import send_html_only, load_config
+    print("[send-email] Request received", flush=True)
     body = request.get_json()
     recipients = body.get("recipients", [])
     if not recipients:
@@ -70,10 +83,10 @@ def send_email():
             return jsonify({"status": "error", "message": "No recipients and no config found"}), 400
     try:
         sent_to = send_html_only(recipients)
+        print(f"[send-email] Success: {sent_to}", flush=True)
         return jsonify({"status": "ok", "sent_to": sent_to})
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-    except Exception as e:
+        print(f"[send-email] Error: {e}", flush=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
