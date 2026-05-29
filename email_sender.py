@@ -327,7 +327,8 @@ def send_pdf(pdf_path, recipients, subject=None):
     except FileNotFoundError:
         pass
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as smtp:
+        smtp.starttls()
         smtp.login(sender, app_password)
         smtp.sendmail(sender, all_recipients, msg.as_string())
 

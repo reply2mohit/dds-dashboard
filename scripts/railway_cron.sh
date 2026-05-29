@@ -20,7 +20,7 @@ fi
 echo "Data refreshed."
 
 echo "Sending nightly email..."
-EMAIL=$(curl -s -o /tmp/email_resp.json -w "%{http_code}" \
+EMAIL=$(curl -s -o /tmp/email_resp.json -w "%{http_code}" --max-time 240 \
   -X POST "$BASE_URL/api/send-email" \
   -H "Content-Type: application/json" \
   -d '{"recipients": []}')
