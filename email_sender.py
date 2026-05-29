@@ -39,7 +39,11 @@ def load_data():
     from data_fetcher import CACHE_FILE
     with open(CACHE_FILE) as f:
         import json as _j
-        return _j.load(f)
+        data = _j.load(f)
+    # Drop per-SKU arrays — email only needs brand-level totals
+    for brand in data.get("brands", []):
+        brand.pop("skus", None)
+    return data
 
 
 def pct_color(pct):
@@ -271,7 +275,7 @@ def build_html_body(data):
 
             <!-- Footer -->
             <div style="margin-top:20px; padding-top:12px; border-top:1px solid {C_BORD}; font-size:10px; color:{C_LITE}; text-align:center;">
-              Full PDF attached &nbsp;·&nbsp; DDS Tracker &nbsp;·&nbsp; {now}
+              DDS Tracker &nbsp;·&nbsp; {now}
             </div>
 
           </td></tr>
