@@ -44,19 +44,19 @@ def download_pdf():
 
 @app.route("/api/reset-baseline", methods=["POST"])
 def reset_baseline():
-    """Force-reset today's baseline to the EOD (end-of-previous-day) snapshot."""
-    import os, json
-    from data_fetcher import EOD_CACHE_FILE, DAILY_BASELINE_FILE
+    """Reset baseline to current cache — zeroes out all change counters."""
+    import json
+    from data_fetcher import CACHE_FILE, DAILY_BASELINE_FILE
     from datetime import datetime
     try:
-        with open(EOD_CACHE_FILE) as f:
-            eod = json.load(f)
-        eod["baseline_date"] = datetime.now().strftime("%Y-%m-%d")
+        with open(CACHE_FILE) as f:
+            current = json.load(f)
+        current["baseline_date"] = datetime.now().strftime("%Y-%m-%d")
         with open(DAILY_BASELINE_FILE, "w") as f:
-            json.dump(eod, f)
-        return jsonify({"status": "ok", "message": "Baseline reset to end-of-previous-day snapshot"})
+            json.dump(current, f)
+        return jsonify({"status": "ok", "message": "Baseline reset to current data — changes now start from zero"})
     except FileNotFoundError:
-        return jsonify({"status": "error", "message": "No EOD snapshot found — refresh will auto-create one at next midnight"}), 404
+        return jsonify({"status": "error", "message": "No data yet — run Refresh first"}), 404
 
 
 @app.route("/api/email-config")

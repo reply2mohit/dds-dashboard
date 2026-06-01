@@ -55,14 +55,12 @@ def is_live_url(val):
 
 def classify_status(raw):
     s = raw.lower().strip()
-    if "sent" in s:
-        return "completed"
+    if not s or s.startswith("http"):
+        return "not_started"
     elif "pending" in s:
         return "pending"
-    elif s == "" or s.startswith("http"):
-        return "not_started"
     else:
-        return "not_started"
+        return "completed"
 
 
 def is_valid_brand(brand):
