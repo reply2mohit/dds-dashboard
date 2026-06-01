@@ -13,10 +13,11 @@ CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:cs
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "."))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-CACHE_FILE          = str(DATA_DIR / "cache.json")
-PREV_CACHE_FILE     = str(DATA_DIR / "cache_prev.json")
-DAILY_BASELINE_FILE = str(DATA_DIR / "cache_baseline.json")
-EOD_CACHE_FILE      = str(DATA_DIR / "cache_eod.json")   # end-of-previous-day snapshot = true midnight baseline
+CACHE_FILE              = str(DATA_DIR / "cache.json")
+PREV_CACHE_FILE         = str(DATA_DIR / "cache_prev.json")
+DAILY_BASELINE_FILE     = str(DATA_DIR / "cache_baseline.json")
+EOD_CACHE_FILE          = str(DATA_DIR / "cache_eod.json")
+FORCED_COMPLETIONS_FILE = str(DATA_DIR / "forced_completions.json")
 
 MARKETPLACES = [
     "amazon link", "Walmart Link", "Kohls Link", "Target Link",
@@ -262,7 +263,6 @@ def fetch_and_process():
 
     # Auto-heal: sheet never gets more than ~20 new SKUs in a day.
     # If >50 appear "new", the baseline is stale — reset silently.
-    total_current_skus = sum(len(b["skus"]) for b in result)
     if changes and changes["total_new_skus"] > 50:
         print(f"[baseline] Stale baseline detected ({changes['total_new_skus']} SKUs flagged new, expected ≤20) — auto-resetting", flush=True)
         fresh_baseline = {"brands": result, "baseline_date": today,
@@ -270,6 +270,8 @@ def fetch_and_process():
         with open(DAILY_BASELINE_FILE, "w") as f:
             json.dump(fresh_baseline, f)
         changes = None
+
+    changes = _merge_forced_completions(changes, result, today)
 
     output = {
         "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -316,6 +318,64 @@ def _load_eod_cache():
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return None
+
+
+def load_forced_completions():
+    try:
+        with open(FORCED_COMPLETIONS_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def save_forced_completions(asins, today):
+    existing = load_forced_completions()
+    if existing and existing.get("date") == today:
+        merged = list(set(existing.get("asins", []) + asins))
+    else:
+        merged = list(set(asins))
+    with open(FORCED_COMPLETIONS_FILE, "w") as f:
+        json.dump({"date": today, "asins": merged}, f)
+    return merged
+
+
+def _merge_forced_completions(changes, result, today):
+    forced = load_forced_completions()
+    if not forced or forced.get("date") != today or not forced.get("asins"):
+        return changes
+
+    forced_set = set(forced["asins"])
+
+    # Build ASIN → {brand, sku, asin} from current data
+    asin_map = {}
+    for brand in result:
+        for sku in brand["skus"]:
+            if sku["asin"] in forced_set:
+                asin_map[sku["asin"]] = {"brand": brand["name"], "sku": sku["sku"], "asin": sku["asin"]}
+
+    if not asin_map:
+        return changes
+
+    if changes is None:
+        changes = {
+            "since": today,
+            "new_skus": [], "dds_completed": [], "mp_gained": [],
+            "new_skus_by_brand": {}, "dds_completed_by_brand": {}, "mp_gained_by_brand": {},
+            "total_new_skus": 0, "total_dds_completed": 0, "total_mp_gained": 0,
+        }
+
+    existing_asins = {item["asin"] for item in changes["dds_completed"]}
+    for asin, item in asin_map.items():
+        if asin not in existing_asins:
+            changes["dds_completed"].append(item)
+
+    changes["total_dds_completed"] = len(changes["dds_completed"])
+    by_brand = {}
+    for item in changes["dds_completed"]:
+        by_brand.setdefault(item["brand"], []).append(item)
+    changes["dds_completed_by_brand"] = by_brand
+
+    return changes
 
 
 if __name__ == "__main__":

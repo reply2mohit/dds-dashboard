@@ -281,6 +281,7 @@
     <div class="last-updated" id="lastUpdated">Last updated: {{ data.last_updated }}</div>
     <a href="/download-pdf" class="refresh-btn" style="text-decoration:none;">Download PDF</a>
     <button class="refresh-btn" style="background:#6366f1;" id="emailBtn" onclick="showEmailModal()">Email Summary</button>
+    <button class="refresh-btn" style="background:#d97706;" onclick="showForceCompleteModal()">Force Complete</button>
     <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">Refresh Now</button>
   </div>
 </div>
@@ -681,6 +682,25 @@
   }
 </script>
 
+<!-- Force Complete Modal -->
+<div id="forceCompleteModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center;">
+  <div style="background:#ffffff; border-radius:14px; padding:32px; width:480px; max-width:92vw; box-shadow:0 8px 32px rgba(0,0,0,.18);">
+    <div style="background:#92400e; margin:-32px -32px 24px; padding:20px 24px; border-radius:10px 10px 0 0;">
+      <div style="font-size:16px; font-weight:700; color:#ffffff;">Force Mark ASINs as Completed</div>
+      <div style="font-size:11px; color:#fcd34d; margin-top:2px;">Use when the baseline missed a completion — clears automatically tomorrow</div>
+    </div>
+    <label style="font-size:12px; color:#64748b; font-weight:600; display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Paste ASINs (one per line or space-separated)</label>
+    <textarea id="forceCompleteAsins" rows="6"
+      style="width:100%; background:#f8fafc; border:1px solid #e2e8f0; color:#0f172a; border-radius:8px; padding:10px 12px; font-size:13px; resize:vertical; font-family:monospace; box-sizing:border-box;"
+      placeholder="B0FP2PQ3H2&#10;B0FP2R5CM9&#10;B0FP2P7M52"></textarea>
+    <div id="forceCompleteStatus" style="font-size:12px; margin-top:10px; min-height:16px;"></div>
+    <div style="display:flex; gap:10px; margin-top:20px; justify-content:flex-end;">
+      <button onclick="hideForceCompleteModal()" style="background:#f1f5f9; border:none; color:#64748b; padding:9px 20px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;">Cancel</button>
+      <button id="forceCompleteBtn" onclick="submitForceComplete()" style="background:#d97706; border:none; color:#fff; padding:9px 22px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;">Mark as Completed</button>
+    </div>
+  </div>
+</div>
+
 <!-- Email Modal -->
 <div id="emailModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center;">
   <div style="background:#ffffff; border-radius:14px; padding:32px; width:440px; max-width:92vw; box-shadow:0 8px 32px rgba(0,0,0,.18);">
@@ -760,6 +780,51 @@
       document.getElementById('emailStatus').textContent = 'Network error. Is the server running?';
       btn.disabled = false;
       btn.textContent = 'Send Report';
+    }
+  }
+
+  function showForceCompleteModal() {
+    document.getElementById('forceCompleteModal').style.display = 'flex';
+    document.getElementById('forceCompleteStatus').textContent = '';
+  }
+
+  function hideForceCompleteModal() {
+    document.getElementById('forceCompleteModal').style.display = 'none';
+    document.getElementById('forceCompleteAsins').value = '';
+  }
+
+  async function submitForceComplete() {
+    const raw = document.getElementById('forceCompleteAsins').value;
+    const asins = raw.split(/[\s,\n]+/).map(a => a.trim()).filter(a => a.length > 0);
+    if (!asins.length) {
+      document.getElementById('forceCompleteStatus').textContent = 'Please enter at least one ASIN.';
+      return;
+    }
+    const btn = document.getElementById('forceCompleteBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    document.getElementById('forceCompleteStatus').textContent = '';
+    try {
+      const resp = await fetch('/api/force-complete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({asins})
+      });
+      const data = await resp.json();
+      if (data.status === 'ok') {
+        document.getElementById('forceCompleteStatus').style.color = '#16a34a';
+        document.getElementById('forceCompleteStatus').textContent = `✓ ${data.forced_asins.length} ASINs marked complete. Refreshing…`;
+        setTimeout(() => { hideForceCompleteModal(); location.reload(); }, 1500);
+      } else {
+        document.getElementById('forceCompleteStatus').style.color = '#dc2626';
+        document.getElementById('forceCompleteStatus').textContent = data.message || 'Error occurred.';
+        btn.disabled = false;
+        btn.textContent = 'Mark as Completed';
+      }
+    } catch(e) {
+      document.getElementById('forceCompleteStatus').textContent = 'Network error.';
+      btn.disabled = false;
+      btn.textContent = 'Mark as Completed';
     }
   }
 </script>
