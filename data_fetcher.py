@@ -260,6 +260,17 @@ def fetch_and_process():
 
     changes = compute_changes(baseline, {"brands": result})
 
+    # Auto-heal: if >50% of SKUs appear "new", the baseline is clearly stale.
+    # Reset it silently so the next refresh shows real changes instead of noise.
+    total_current_skus = sum(len(b["skus"]) for b in result)
+    if changes and total_current_skus > 0 and changes["total_new_skus"] > total_current_skus * 0.5:
+        print(f"[baseline] Stale baseline detected ({changes['total_new_skus']}/{total_current_skus} SKUs flagged new) — auto-resetting", flush=True)
+        fresh_baseline = {"brands": result, "baseline_date": today,
+                          "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        with open(DAILY_BASELINE_FILE, "w") as f:
+            json.dump(fresh_baseline, f)
+        changes = None
+
     output = {
         "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "total_skus": sum(b["total"] for b in result),
