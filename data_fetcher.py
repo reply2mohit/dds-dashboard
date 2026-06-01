@@ -260,11 +260,11 @@ def fetch_and_process():
 
     changes = compute_changes(baseline, {"brands": result})
 
-    # Auto-heal: if >50% of SKUs appear "new", the baseline is clearly stale.
-    # Reset it silently so the next refresh shows real changes instead of noise.
+    # Auto-heal: sheet never gets more than ~20 new SKUs in a day.
+    # If >50 appear "new", the baseline is stale — reset silently.
     total_current_skus = sum(len(b["skus"]) for b in result)
-    if changes and total_current_skus > 0 and changes["total_new_skus"] > total_current_skus * 0.5:
-        print(f"[baseline] Stale baseline detected ({changes['total_new_skus']}/{total_current_skus} SKUs flagged new) — auto-resetting", flush=True)
+    if changes and changes["total_new_skus"] > 50:
+        print(f"[baseline] Stale baseline detected ({changes['total_new_skus']} SKUs flagged new, expected ≤20) — auto-resetting", flush=True)
         fresh_baseline = {"brands": result, "baseline_date": today,
                           "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         with open(DAILY_BASELINE_FILE, "w") as f:
