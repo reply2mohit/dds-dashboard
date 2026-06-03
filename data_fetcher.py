@@ -22,7 +22,7 @@ FORCED_COMPLETIONS_FILE = str(DATA_DIR / "forced_completions.json")
 MARKETPLACES = [
     "amazon link", "Walmart Link", "Kohls Link", "Target Link",
     "TEMU Link", "Zulily Link", "Ebay Link", "Ebay LOTS Link",
-    "Sears Link", "TikTok Link", "Debenhams Link", "D2c Link",
+    "Sears Link", "TikTok Link", "Debenhams Link", "D2C Link",
     "Wayfair Link", "mercado libre Link"
 ]
 
@@ -38,7 +38,7 @@ MARKETPLACE_DISPLAY = {
     "Sears Link": "Sears",
     "TikTok Link": "TikTok",
     "Debenhams Link": "Debenhams",
-    "D2c Link": "D2C",
+    "D2C Link": "D2C",
     "Wayfair Link": "Wayfair",
     "mercado libre Link": "Mercado Libre"
 }
