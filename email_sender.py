@@ -371,17 +371,12 @@ def send_html_only(recipients, subject=None):
     if not subject:
         subject = f"DDS Tracker — {datetime.now().strftime('%d %b %Y')}"
 
-    # Use pre-cached HTML (generated during refresh) to avoid loading all data into memory
-    from data_fetcher import DATA_DIR
-    email_html_path = str(DATA_DIR / "email_cache.html")
-    if os.path.exists(email_html_path):
-        print("[email] Using cached HTML.", flush=True)
-        with open(email_html_path) as f:
-            html_body = f.read()
-    else:
-        print("[email] No cache — building HTML from data.", flush=True)
-        data = load_data()
-        html_body = build_html_body(data)
+    # Always build from live cache.json so stale email_cache.html can't send blank emails
+    data = load_data()
+    if not data.get("brands"):
+        raise RuntimeError("Cache is empty — cannot send email with no data. Run /api/refresh first.")
+    print(f"[email] Building HTML from live data ({data['total_skus']} SKUs)...", flush=True)
+    html_body = build_html_body(data)
 
     print(f"[email] HTML ready ({len(html_body)} bytes). Sending via Resend...", flush=True)
 
