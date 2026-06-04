@@ -507,7 +507,7 @@
         <td></td>
       </tr>
       <tr>
-        {% set amazon_total = data.mp_totals.get('Amazon', 1) %}
+        {% set amazon_total = (data.mp_totals.get('Amazon', 0) or 1) %}
         <td class="brand-cell" style="color:#94a3b8;font-size:11px;">% of Amazon (base 100%)</td>
         {% for mp in data.all_marketplaces %}
         {% set count = data.mp_totals.get(mp, 0) %}
