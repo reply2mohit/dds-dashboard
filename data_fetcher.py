@@ -146,7 +146,9 @@ def compute_changes(prev, curr):
 
 
 def fetch_and_process():
-    resp = requests.get(CSV_URL, timeout=30)
+    import time
+    bust_url = CSV_URL + f"&_={int(time.time())}"
+    resp = requests.get(bust_url, timeout=30)
     resp.raise_for_status()
 
     reader = csv.DictReader(io.StringIO(resp.text))
