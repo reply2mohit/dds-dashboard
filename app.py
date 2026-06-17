@@ -48,10 +48,11 @@ def force_complete():
     from datetime import datetime
     body = request.get_json()
     asins = [a.strip() for a in body.get("asins", []) if a.strip()]
-    if not asins:
-        return jsonify({"status": "error", "message": "No ASINs provided"}), 400
+    mp_updates = body.get("mp_updates", [])  # list of {asin, marketplaces:[...]}
+    if not asins and not mp_updates:
+        return jsonify({"status": "error", "message": "No ASINs or marketplace updates provided"}), 400
     today = datetime.now().strftime("%Y-%m-%d")
-    saved = save_forced_completions(asins, today)
+    saved = save_forced_completions(asins, today, mp_updates=mp_updates)
     data = fetch_and_process()
     return jsonify({"status": "ok", "forced_asins": saved, "last_updated": data["last_updated"]})
 

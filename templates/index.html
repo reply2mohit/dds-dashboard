@@ -684,19 +684,45 @@
 
 <!-- Force Complete Modal -->
 <div id="forceCompleteModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center;">
-  <div style="background:#ffffff; border-radius:14px; padding:32px; width:480px; max-width:92vw; box-shadow:0 8px 32px rgba(0,0,0,.18);">
+  <div style="background:#ffffff; border-radius:14px; padding:32px; width:540px; max-width:92vw; box-shadow:0 8px 32px rgba(0,0,0,.18);">
     <div style="background:#92400e; margin:-32px -32px 24px; padding:20px 24px; border-radius:10px 10px 0 0;">
-      <div style="font-size:16px; font-weight:700; color:#ffffff;">Force Mark ASINs as Completed</div>
-      <div style="font-size:11px; color:#fcd34d; margin-top:2px;">Use when the baseline missed a completion — clears automatically tomorrow</div>
+      <div style="font-size:16px; font-weight:700; color:#ffffff;">Force Update Changes</div>
+      <div style="font-size:11px; color:#fcd34d; margin-top:2px;">Use when the baseline missed changes — clears automatically tomorrow</div>
     </div>
-    <label style="font-size:12px; color:#64748b; font-weight:600; display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Paste ASINs (one per line or space-separated)</label>
-    <textarea id="forceCompleteAsins" rows="6"
-      style="width:100%; background:#f8fafc; border:1px solid #e2e8f0; color:#0f172a; border-radius:8px; padding:10px 12px; font-size:13px; resize:vertical; font-family:monospace; box-sizing:border-box;"
-      placeholder="B0FP2PQ3H2&#10;B0FP2R5CM9&#10;B0FP2P7M52"></textarea>
-    <div id="forceCompleteStatus" style="font-size:12px; margin-top:10px; min-height:16px;"></div>
+
+    <!-- Tabs -->
+    <div style="display:flex; gap:0; margin-bottom:18px; border-bottom:2px solid #e2e8f0;">
+      <button id="fcTab1" onclick="switchFcTab(1)"
+        style="padding:8px 18px; border:none; background:none; font-size:13px; font-weight:700; color:#d97706; border-bottom:2px solid #d97706; margin-bottom:-2px; cursor:pointer;">
+        DDS Completed
+      </button>
+      <button id="fcTab2" onclick="switchFcTab(2)"
+        style="padding:8px 18px; border:none; background:none; font-size:13px; font-weight:600; color:#94a3b8; cursor:pointer;">
+        Marketplace Updates
+      </button>
+    </div>
+
+    <!-- DDS tab -->
+    <div id="fcPanel1">
+      <label style="font-size:12px; color:#64748b; font-weight:600; display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">ASINs (one per line)</label>
+      <textarea id="forceCompleteAsins" rows="5"
+        style="width:100%; background:#f8fafc; border:1px solid #e2e8f0; color:#0f172a; border-radius:8px; padding:10px 12px; font-size:13px; resize:vertical; font-family:monospace; box-sizing:border-box;"
+        placeholder="B0FP2PQ3H2&#10;B0FP2R5CM9&#10;B0FP2P7M52"></textarea>
+    </div>
+
+    <!-- Marketplace tab -->
+    <div id="fcPanel2" style="display:none;">
+      <label style="font-size:12px; color:#64748b; font-weight:600; display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">ASIN | Marketplace1, Marketplace2 (one per line)</label>
+      <textarea id="forceMpUpdates" rows="5"
+        style="width:100%; background:#f8fafc; border:1px solid #e2e8f0; color:#0f172a; border-radius:8px; padding:10px 12px; font-size:13px; resize:vertical; font-family:monospace; box-sizing:border-box;"
+        placeholder="B0CQTNF43D|eBay LOTS&#10;B002M5T9QW|eBay, TikTok&#10;B07K13FRK4|D2C"></textarea>
+      <div style="font-size:11px; color:#94a3b8; margin-top:5px;">Format: ASIN|Marketplace1, Marketplace2</div>
+    </div>
+
+    <div id="forceCompleteStatus" style="font-size:12px; margin-top:12px; min-height:16px;"></div>
     <div style="display:flex; gap:10px; margin-top:20px; justify-content:flex-end;">
       <button onclick="hideForceCompleteModal()" style="background:#f1f5f9; border:none; color:#64748b; padding:9px 20px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;">Cancel</button>
-      <button id="forceCompleteBtn" onclick="submitForceComplete()" style="background:#d97706; border:none; color:#fff; padding:9px 22px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;">Mark as Completed</button>
+      <button id="forceCompleteBtn" onclick="submitForceComplete()" style="background:#d97706; border:none; color:#fff; padding:9px 22px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;">Save Changes</button>
     </div>
   </div>
 </div>
@@ -793,38 +819,62 @@
     document.getElementById('forceCompleteAsins').value = '';
   }
 
+  function switchFcTab(n) {
+    document.getElementById('fcPanel1').style.display = n === 1 ? 'block' : 'none';
+    document.getElementById('fcPanel2').style.display = n === 2 ? 'block' : 'none';
+    document.getElementById('fcTab1').style.cssText = n === 1
+      ? 'padding:8px 18px;border:none;background:none;font-size:13px;font-weight:700;color:#d97706;border-bottom:2px solid #d97706;margin-bottom:-2px;cursor:pointer;'
+      : 'padding:8px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#94a3b8;cursor:pointer;';
+    document.getElementById('fcTab2').style.cssText = n === 2
+      ? 'padding:8px 18px;border:none;background:none;font-size:13px;font-weight:700;color:#d97706;border-bottom:2px solid #d97706;margin-bottom:-2px;cursor:pointer;'
+      : 'padding:8px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#94a3b8;cursor:pointer;';
+  }
+
   async function submitForceComplete() {
-    const raw = document.getElementById('forceCompleteAsins').value;
-    const asins = raw.split(/[\s,\n]+/).map(a => a.trim()).filter(a => a.length > 0);
-    if (!asins.length) {
-      document.getElementById('forceCompleteStatus').textContent = 'Please enter at least one ASIN.';
+    const rawDds = document.getElementById('forceCompleteAsins').value;
+    const asins = rawDds.split(/[\n]+/).map(a => a.trim()).filter(a => a.length > 0);
+
+    const rawMp = document.getElementById('forceMpUpdates').value;
+    const mp_updates = [];
+    rawMp.split(/\n/).forEach(line => {
+      line = line.trim();
+      if (!line) return;
+      const parts = line.split('|');
+      if (parts.length < 2) return;
+      const asin = parts[0].trim();
+      const marketplaces = parts[1].split(',').map(m => m.trim()).filter(m => m);
+      if (asin && marketplaces.length) mp_updates.push({asin, marketplaces});
+    });
+
+    if (!asins.length && !mp_updates.length) {
+      document.getElementById('forceCompleteStatus').textContent = 'Please enter at least one ASIN or marketplace update.';
       return;
     }
     const btn = document.getElementById('forceCompleteBtn');
-    btn.disabled = true;
-    btn.textContent = 'Saving…';
+    btn.disabled = true; btn.textContent = 'Saving…';
     document.getElementById('forceCompleteStatus').textContent = '';
     try {
       const resp = await fetch('/api/force-complete', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({asins})
+        body: JSON.stringify({asins, mp_updates})
       });
       const data = await resp.json();
       if (data.status === 'ok') {
         document.getElementById('forceCompleteStatus').style.color = '#16a34a';
-        document.getElementById('forceCompleteStatus').textContent = `✓ ${data.forced_asins.length} ASINs marked complete. Refreshing…`;
+        const parts = [];
+        if (data.forced_asins.length) parts.push(`${data.forced_asins.length} DDS ASINs`);
+        if (mp_updates.length) parts.push(`${mp_updates.length} marketplace updates`);
+        document.getElementById('forceCompleteStatus').textContent = `✓ Saved: ${parts.join(', ')}. Refreshing…`;
         setTimeout(() => { hideForceCompleteModal(); location.reload(); }, 1500);
       } else {
         document.getElementById('forceCompleteStatus').style.color = '#dc2626';
         document.getElementById('forceCompleteStatus').textContent = data.message || 'Error occurred.';
-        btn.disabled = false;
-        btn.textContent = 'Mark as Completed';
+        btn.disabled = false; btn.textContent = 'Save Changes';
       }
     } catch(e) {
       document.getElementById('forceCompleteStatus').textContent = 'Network error.';
-      btn.disabled = false;
-      btn.textContent = 'Mark as Completed';
+      btn.disabled = false; btn.textContent = 'Save Changes';
     }
   }
 </script>

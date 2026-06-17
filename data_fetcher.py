@@ -357,33 +357,31 @@ def load_forced_completions():
         return None
 
 
-def save_forced_completions(asins, today):
+def save_forced_completions(asins, today, mp_updates=None):
     existing = load_forced_completions()
     if existing and existing.get("date") == today:
-        merged = list(set(existing.get("asins", []) + asins))
+        merged_asins = list(set(existing.get("asins", []) + asins))
+        existing_mp = existing.get("mp_updates", [])
+        existing_mp_asins = {e["asin"] for e in existing_mp}
+        merged_mp = existing_mp + [m for m in (mp_updates or []) if m["asin"] not in existing_mp_asins]
     else:
-        merged = list(set(asins))
+        merged_asins = list(set(asins))
+        merged_mp = mp_updates or []
     with open(FORCED_COMPLETIONS_FILE, "w") as f:
-        json.dump({"date": today, "asins": merged}, f)
-    return merged
+        json.dump({"date": today, "asins": merged_asins, "mp_updates": merged_mp}, f)
+    return merged_asins
 
 
 def _merge_forced_completions(changes, result, today):
     forced = load_forced_completions()
-    if not forced or forced.get("date") != today or not forced.get("asins"):
+    if not forced or forced.get("date") != today:
         return changes
 
-    forced_set = set(forced["asins"])
-
-    # Build ASIN → {brand, sku, asin} from current data
+    # Build ASIN → {brand, sku, asin} lookup from current data
     asin_map = {}
     for brand in result:
         for sku in brand["skus"]:
-            if sku["asin"] in forced_set:
-                asin_map[sku["asin"]] = {"brand": brand["name"], "sku": sku["sku"], "asin": sku["asin"]}
-
-    if not asin_map:
-        return changes
+            asin_map[sku["asin"]] = {"brand": brand["name"], "sku": sku["sku"], "asin": sku["asin"]}
 
     if changes is None:
         changes = {
@@ -393,16 +391,38 @@ def _merge_forced_completions(changes, result, today):
             "total_new_skus": 0, "total_dds_completed": 0, "total_mp_gained": 0,
         }
 
-    existing_asins = {item["asin"] for item in changes["dds_completed"]}
-    for asin, item in asin_map.items():
-        if asin not in existing_asins:
-            changes["dds_completed"].append(item)
+    # Merge forced DDS completions
+    forced_dds = set(forced.get("asins", []))
+    if forced_dds:
+        existing_dds_asins = {item["asin"] for item in changes["dds_completed"]}
+        for asin in forced_dds:
+            if asin in asin_map and asin not in existing_dds_asins:
+                changes["dds_completed"].append(asin_map[asin])
+        changes["total_dds_completed"] = len(changes["dds_completed"])
+        by_brand = {}
+        for item in changes["dds_completed"]:
+            by_brand.setdefault(item["brand"], []).append(item)
+        changes["dds_completed_by_brand"] = by_brand
 
-    changes["total_dds_completed"] = len(changes["dds_completed"])
-    by_brand = {}
-    for item in changes["dds_completed"]:
-        by_brand.setdefault(item["brand"], []).append(item)
-    changes["dds_completed_by_brand"] = by_brand
+    # Merge forced marketplace updates
+    forced_mp = forced.get("mp_updates", [])
+    if forced_mp:
+        existing_mp_asins = {item["asin"] for item in changes["mp_gained"]}
+        for entry in forced_mp:
+            asin = entry["asin"]
+            if asin not in existing_mp_asins:
+                info = asin_map.get(asin, {})
+                changes["mp_gained"].append({
+                    "brand": info.get("brand", entry.get("brand", "Unknown")),
+                    "sku":   info.get("sku",   entry.get("sku", asin)),
+                    "asin":  asin,
+                    "gained": entry.get("marketplaces", []),
+                })
+        changes["total_mp_gained"] = len(changes["mp_gained"])
+        by_brand = {}
+        for item in changes["mp_gained"]:
+            by_brand.setdefault(item["brand"], []).append(item)
+        changes["mp_gained_by_brand"] = by_brand
 
     return changes
 
