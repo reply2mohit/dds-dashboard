@@ -73,6 +73,17 @@ def reset_baseline():
         return jsonify({"status": "error", "message": "No data yet — run Refresh first"}), 404
 
 
+@app.route("/api/mark-sent", methods=["POST"])
+def mark_sent():
+    """Save current cache as the last-sent baseline so future diffs start from here."""
+    from data_fetcher import save_last_sent_baseline
+    from datetime import datetime
+    ok = save_last_sent_baseline()
+    if ok:
+        return jsonify({"status": "ok", "sent_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+    return jsonify({"status": "error", "message": "No cache yet — run Refresh first"}), 404
+
+
 @app.route("/api/email-config")
 def email_config():
     from email_sender import load_config

@@ -18,6 +18,7 @@ PREV_CACHE_FILE         = str(DATA_DIR / "cache_prev.json")
 DAILY_BASELINE_FILE     = str(DATA_DIR / "cache_baseline.json")
 EOD_CACHE_FILE          = str(DATA_DIR / "cache_eod.json")
 FORCED_COMPLETIONS_FILE = str(DATA_DIR / "forced_completions.json")
+LAST_SENT_FILE          = str(DATA_DIR / "cache_last_sent.json")
 
 MARKETPLACES = [
     "amazon link", "Walmart Link", "Kohls Link", "Target Link",
@@ -129,8 +130,9 @@ def compute_changes(prev, curr):
             out.setdefault(b, []).append(item)
         return out
 
-    baseline_date = prev.get("last_updated", prev.get("baseline_date", ""))
-    since_label = baseline_date[:10] if len(str(baseline_date)) >= 10 else "previous day"
+    # If this baseline came from a sent email, use the sent_at timestamp for the label
+    baseline_date = prev.get("sent_at") or prev.get("last_updated", prev.get("baseline_date", ""))
+    since_label = baseline_date[:16] if len(str(baseline_date)) >= 16 else (baseline_date[:10] if len(str(baseline_date)) >= 10 else "previous report")
     return {
         "since": since_label,
         "new_skus":       new_skus,
@@ -233,10 +235,11 @@ def fetch_and_process():
         for mp_name in all_mp_names
     }
 
-    # Changes = yesterday vs today (calendar date, not rolling 24h).
+    # Changes = since last email sent (preferred) or since start of day (fallback).
+    # cache_last_sent.json is saved whenever an email report goes out — this gives
+    # the most meaningful diff ("what changed since I last reported").
     # cache_eod.json always holds the last save from the PREVIOUS calendar day.
-    # cache_baseline.json is today's active baseline — set once per day and
-    # never overwritten during the day so all refreshes accumulate correctly.
+    # cache_baseline.json is today's active baseline — set once per day as fallback.
     today = datetime.now().strftime("%Y-%m-%d")
 
     # Step 1: Before overwriting cache.json, check if it belongs to a previous date.
@@ -248,18 +251,22 @@ def fetch_and_process():
             with open(EOD_CACHE_FILE, "w") as f:
                 json.dump(existing_cache, f)
 
-    # Step 2: On the first refresh of a new calendar day, promote the EOD snapshot
-    #         to the active baseline.  Never update it again until tomorrow.
-    baseline = _load_daily_baseline()
-    if baseline is None or baseline.get("baseline_date") != today:
-        eod = _load_eod_cache()
-        src = eod if eod else existing_cache   # fallback for first-ever run
-        if src:
-            src = dict(src)
-            src["baseline_date"] = today
-            with open(DAILY_BASELINE_FILE, "w") as f:
-                json.dump(src, f)
-            baseline = src
+    # Step 2: Use last-sent snapshot as baseline if available; otherwise fall back
+    #         to the daily baseline (set once per day from yesterday's EOD).
+    last_sent = _load_last_sent()
+    if last_sent:
+        baseline = last_sent
+    else:
+        baseline = _load_daily_baseline()
+        if baseline is None or baseline.get("baseline_date") != today:
+            eod = _load_eod_cache()
+            src = eod if eod else existing_cache   # fallback for first-ever run
+            if src:
+                src = dict(src)
+                src["baseline_date"] = today
+                with open(DAILY_BASELINE_FILE, "w") as f:
+                    json.dump(src, f)
+                baseline = src
 
     changes = compute_changes(baseline, {"brands": result})
 
@@ -320,6 +327,26 @@ def _load_eod_cache():
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return None
+
+
+def _load_last_sent():
+    try:
+        with open(LAST_SENT_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def save_last_sent_baseline():
+    """Save current cache as the last-sent baseline. Call this right after email goes out."""
+    cache = load_cache()
+    if not cache:
+        return False
+    snapshot = dict(cache)
+    snapshot["sent_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(LAST_SENT_FILE, "w") as f:
+        json.dump(snapshot, f, indent=2)
+    return True
 
 
 def load_forced_completions():
