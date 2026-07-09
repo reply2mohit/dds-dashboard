@@ -1,11 +1,8 @@
 {
-    "smtp_host": "smtp.gmail.com",
-    "smtp_port": 587,
-    "smtp_user": "your-gmail@gmail.com",
-    "smtp_password": "your-gmail-app-password",
-    "from_name": "DDS Dashboard",
+    "sender": "your-gmail@gmail.com",
+    "app_password": "xxxx xxxx xxxx xxxx",
     "default_recipients": [
-        "recipient1@example.com",
-        "recipient2@example.com"
+        "recipient1@ergode.com",
+        "recipient2@ergode.com"
     ]
 }
